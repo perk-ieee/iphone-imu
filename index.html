@@ -126,6 +126,20 @@
 
     <section class="sensor-card">
       <div class="card-head">
+        <span class="swatch" style="background:var(--geo)"></span>
+        <h2>Location</h2>
+        <span class="unit">GPS</span>
+      </div>
+      <div class="axes" id="geoAxes">
+        <div class="axis" data-axis="lat"><span class="label">Latitude</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="lon"><span class="label">Longitude</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="acc"><span class="label">Accuracy (m)</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+      </div>
+      <p class="geo-note" id="geoNote" hidden></p>
+    </section>
+
+    <section class="sensor-card">
+      <div class="card-head">
         <span class="swatch" style="background:var(--accel)"></span>
         <h2>Accelerometer</h2>
         <span class="unit">m/s²</span>
@@ -161,20 +175,6 @@
         <div class="axis" data-axis="beta"><span class="label">Pitch</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
         <div class="axis" data-axis="gamma"><span class="label">Roll</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
       </div>
-    </section>
-
-    <section class="sensor-card">
-      <div class="card-head">
-        <span class="swatch" style="background:var(--geo)"></span>
-        <h2>Location</h2>
-        <span class="unit">GPS</span>
-      </div>
-      <div class="axes" id="geoAxes">
-        <div class="axis" data-axis="lat"><span class="label">Latitude</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
-        <div class="axis" data-axis="lon"><span class="label">Longitude</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
-        <div class="axis" data-axis="acc"><span class="label">Accuracy (m)</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
-      </div>
-      <p class="geo-note" id="geoNote" hidden></p>
     </section>
 
     <div class="meta-row">
