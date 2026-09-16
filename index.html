@@ -1,0 +1,367 @@
+<title>Motion Readout</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#eef1f4; --surface:#ffffff; --surface-2:#f7f9fb; --border:#d7dee5;
+    --text:#16202b; --text-dim:#5c6b78; --text-faint:#8b98a4;
+    --accent:#0d6f8f; --accent-soft:#e2f1f5; --accent-ink:#ffffff;
+    --accel:#2f6fed; --gyro:#c76f14; --orient:#7a4fd1; --geo:#1a8a6e;
+    --good:#1f9d55; --good-soft:#e4f6ea; --warn:#a5690a; --warn-soft:#faedd6; --bad:#c93f3f; --bad-soft:#fbe6e6;
+    --font-ui:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,'SF Mono',monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#10161c; --surface:#171f27; --surface-2:#1c252e; --border:#2b3742;
+      --text:#e7edf2; --text-dim:#a2b0bb; --text-faint:#6b7885;
+      --accent:#5fc4e8; --accent-soft:#16323d; --accent-ink:#0b1a20;
+      --accel:#7fa2ff; --gyro:#f0ab55; --orient:#bb9bf2; --geo:#4ecfa8;
+      --good:#4ecf82; --good-soft:#12301f; --warn:#eab54f; --warn-soft:#332405; --bad:#f0685f; --bad-soft:#331414;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10161c; --surface:#171f27; --surface-2:#1c252e; --border:#2b3742;
+    --text:#e7edf2; --text-dim:#a2b0bb; --text-faint:#6b7885;
+    --accent:#5fc4e8; --accent-soft:#16323d; --accent-ink:#0b1a20;
+    --accel:#7fa2ff; --gyro:#f0ab55; --orient:#bb9bf2; --geo:#4ecfa8;
+    --good:#4ecf82; --good-soft:#12301f; --warn:#eab54f; --warn-soft:#332405; --bad:#f0685f; --bad-soft:#331414;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--font-ui);
+    padding-inline:16px; padding-block:24px 40px;
+  }
+  .page{ max-width:480px; margin-inline:auto; display:flex; flex-direction:column; gap:16px; }
+
+  header{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+  .title-block h1{ margin:0; font-size:1.3rem; font-weight:600; letter-spacing:-0.01em; }
+  .title-block p{ margin:4px 0 0; font-size:0.82rem; color:var(--text-dim); max-width:34ch; }
+
+  .status-pill{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px;
+    font-size:0.72rem; font-weight:600; letter-spacing:0.02em; text-transform:uppercase;
+    white-space:nowrap; flex-shrink:0;
+  }
+  .status-pill .dot{ width:7px; height:7px; border-radius:50%; background:currentColor; }
+  .status-idle{ background:var(--surface-2); color:var(--text-faint); }
+  .status-wait{ background:var(--warn-soft); color:var(--warn); }
+  .status-live{ background:var(--good-soft); color:var(--good); }
+  .status-error{ background:var(--bad-soft); color:var(--bad); }
+  .status-live .dot{ animation:pulse 2s ease-in-out infinite; }
+  @media (prefers-reduced-motion:reduce){ .status-live .dot{ animation:none; } }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+
+  .panel{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:18px; display:flex; flex-direction:column; gap:12px;
+  }
+  .panel p{ margin:0; font-size:0.86rem; color:var(--text-dim); line-height:1.5; }
+  .btn{
+    appearance:none; border:none; border-radius:10px; padding:12px 18px;
+    background:var(--accent); color:var(--accent-ink); font-family:var(--font-ui);
+    font-size:0.92rem; font-weight:600; cursor:pointer; width:100%;
+  }
+  .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .btn:active{ opacity:0.85; }
+  .btn-secondary{ background:var(--surface-2); color:var(--text); border:1px solid var(--border); }
+
+  .meta-row{ display:flex; justify-content:space-between; align-items:baseline; font-size:0.72rem; color:var(--text-faint); }
+  .meta-row span.rate{ font-family:var(--font-mono); background:var(--surface-2); padding:2px 7px; border-radius:6px; }
+
+  .sensor-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .sensor-card .card-head{ display:flex; align-items:center; gap:8px; }
+  .swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+  .sensor-card h2{ margin:0; font-size:0.86rem; font-weight:600; }
+  .sensor-card .card-head .unit{ margin-left:auto; font-size:0.7rem; color:var(--text-faint); font-family:var(--font-mono); }
+
+  .axes{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .axis{ display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .axis .label{ font-size:0.68rem; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em; }
+  .axis .value{ font-family:var(--font-mono); font-size:1.15rem; font-weight:500; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .axis .track{ height:4px; border-radius:2px; background:var(--surface-2); position:relative; overflow:hidden; }
+  .axis .fill{ position:absolute; top:0; bottom:0; left:0; width:0%; border-radius:2px; transition:width 0.25s ease; }
+
+  .geo-note{ margin:0; font-size:0.76rem; color:var(--text-faint); }
+
+  footer{ font-size:0.74rem; color:var(--text-faint); line-height:1.5; padding-top:4px; }
+  footer a{ color:inherit; }
+
+  [hidden]{ display:none !important; }
+</style>
+
+<div class="page">
+  <header>
+    <div class="title-block">
+      <h1>Motion Readout</h1>
+      <p>Live 9-axis motion data and GPS position from this device's sensors.</p>
+    </div>
+    <div class="status-pill status-idle" id="statusPill"><span class="dot"></span><span id="statusText">Idle</span></div>
+  </header>
+
+  <div class="panel" id="permissionPanel">
+    <p id="permissionText">iOS requires a tap to grant this page access to your motion sensors and location.</p>
+    <button class="btn" id="enableBtn" type="button">Enable sensors &amp; location</button>
+    <p class="geo-note" id="diagText" style="margin-top:2px;"></p>
+  </div>
+
+  <div id="readouts" hidden style="display:flex; flex-direction:column; gap:14px;">
+
+    <section class="sensor-card">
+      <div class="card-head">
+        <span class="swatch" style="background:var(--accel)"></span>
+        <h2>Accelerometer</h2>
+        <span class="unit">m/s²</span>
+      </div>
+      <div class="axes" id="accelAxes">
+        <div class="axis" data-axis="x"><span class="label">X</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--accel)"></div></div></div>
+        <div class="axis" data-axis="y"><span class="label">Y</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--accel)"></div></div></div>
+        <div class="axis" data-axis="z"><span class="label">Z</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--accel)"></div></div></div>
+      </div>
+    </section>
+
+    <section class="sensor-card">
+      <div class="card-head">
+        <span class="swatch" style="background:var(--gyro)"></span>
+        <h2>Gyroscope</h2>
+        <span class="unit">°/s</span>
+      </div>
+      <div class="axes" id="gyroAxes">
+        <div class="axis" data-axis="pitch"><span class="label">Pitch</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--gyro)"></div></div></div>
+        <div class="axis" data-axis="roll"><span class="label">Roll</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--gyro)"></div></div></div>
+        <div class="axis" data-axis="yaw"><span class="label">Yaw</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--gyro)"></div></div></div>
+      </div>
+    </section>
+
+    <section class="sensor-card">
+      <div class="card-head">
+        <span class="swatch" style="background:var(--orient)"></span>
+        <h2>Orientation</h2>
+        <span class="unit">°</span>
+      </div>
+      <div class="axes" id="orientAxes">
+        <div class="axis" data-axis="alpha"><span class="label">Heading</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
+        <div class="axis" data-axis="beta"><span class="label">Pitch</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
+        <div class="axis" data-axis="gamma"><span class="label">Roll</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
+      </div>
+    </section>
+
+    <section class="sensor-card">
+      <div class="card-head">
+        <span class="swatch" style="background:var(--geo)"></span>
+        <h2>Location</h2>
+        <span class="unit">GPS</span>
+      </div>
+      <div class="axes" id="geoAxes">
+        <div class="axis" data-axis="lat"><span class="label">Latitude</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="lon"><span class="label">Longitude</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="acc"><span class="label">Accuracy (m)</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+      </div>
+      <p class="geo-note" id="geoNote" hidden></p>
+    </section>
+
+    <div class="meta-row">
+      <span id="lastUpdate">Waiting for first sample…</span>
+      <span class="rate">1 Hz refresh</span>
+    </div>
+  </div>
+
+  <footer>
+    Safari doesn't expose a phone's raw magnetometer to web pages, so the third triad shown here is fused orientation (compass heading, tilt, roll) rather than raw magnetic field — the closest 3-axis substitute available in-browser. Location comes from the device's GPS/location services and is requested separately from motion access. Best viewed in Safari on an iPhone.
+  </footer>
+</div>
+
+<script>
+(function(){
+  var statusPill = document.getElementById('statusPill');
+  var statusText = document.getElementById('statusText');
+  var permissionPanel = document.getElementById('permissionPanel');
+  var permissionText = document.getElementById('permissionText');
+  var enableBtn = document.getElementById('enableBtn');
+  var readouts = document.getElementById('readouts');
+  var lastUpdate = document.getElementById('lastUpdate');
+  var geoNote = document.getElementById('geoNote');
+  var diagText = document.getElementById('diagText');
+
+  function renderDiagnostics(extra){
+    var isTop = (window.top === window.self);
+    var parts = [
+      'Frame: ' + (isTop ? 'top-level' : 'embedded (iframe)'),
+      'Secure context: ' + (window.isSecureContext ? 'yes' : 'no')
+    ];
+    if (extra) parts.push(extra);
+    diagText.hidden = false;
+    diagText.textContent = parts.join(' · ');
+  }
+  renderDiagnostics();
+
+  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null} };
+  var haveMotionEvent = false, haveOrientEvent = false;
+  var tickTimer = null, watchdogTimer = null, geoWatchId = null;
+
+  var RANGES = {
+    accel: [-20, 20],
+    gyro:  [-360, 360],
+    orient_alpha: [0, 360],
+    orient_beta:  [-180, 180],
+    orient_gamma: [-90, 90],
+    geo_lat: [-90, 90],
+    geo_lon: [-180, 180],
+    geo_acc: [0, 100]
+  };
+
+  function setStatus(kind, label){
+    statusPill.className = 'status-pill status-' + kind;
+    statusText.textContent = label;
+  }
+
+  function clampPct(value, min, max){
+    if (value === null || value === undefined || isNaN(value)) return null;
+    var pct = (value - min) / (max - min) * 100;
+    return Math.max(0, Math.min(100, pct));
+  }
+
+  function paintAxis(containerId, key, value, decimals, range){
+    var el = document.querySelector('#' + containerId + ' [data-axis="' + key + '"]');
+    if (!el) return;
+    var valueEl = el.querySelector('.value');
+    var fillEl = el.querySelector('.fill');
+    if (value === null || value === undefined || isNaN(value)){
+      valueEl.textContent = '—';
+      fillEl.style.width = '0%';
+      return;
+    }
+    valueEl.textContent = value.toFixed(decimals);
+    var pct = clampPct(value, range[0], range[1]);
+    fillEl.style.width = (pct === null ? 0 : pct) + '%';
+  }
+
+  function renderTick(){
+    paintAxis('accelAxes', 'x', latest.accel.x, 2, RANGES.accel);
+    paintAxis('accelAxes', 'y', latest.accel.y, 2, RANGES.accel);
+    paintAxis('accelAxes', 'z', latest.accel.z, 2, RANGES.accel);
+
+    paintAxis('gyroAxes', 'pitch', latest.gyro.pitch, 1, RANGES.gyro);
+    paintAxis('gyroAxes', 'roll',  latest.gyro.roll,  1, RANGES.gyro);
+    paintAxis('gyroAxes', 'yaw',   latest.gyro.yaw,   1, RANGES.gyro);
+
+    paintAxis('orientAxes', 'alpha', latest.orient.alpha, 0, RANGES.orient_alpha);
+    paintAxis('orientAxes', 'beta',  latest.orient.beta,  0, RANGES.orient_beta);
+    paintAxis('orientAxes', 'gamma', latest.orient.gamma, 0, RANGES.orient_gamma);
+
+    paintAxis('geoAxes', 'lat', latest.geo.lat, 4, RANGES.geo_lat);
+    paintAxis('geoAxes', 'lon', latest.geo.lon, 4, RANGES.geo_lon);
+    paintAxis('geoAxes', 'acc', latest.geo.acc, 0, RANGES.geo_acc);
+
+    lastUpdate.textContent = 'Updated ' + new Date().toLocaleTimeString();
+  }
+
+  function onDeviceMotion(e){
+    haveMotionEvent = true;
+    var a = e.accelerationIncludingGravity || e.acceleration || {};
+    latest.accel = { x: a.x, y: a.y, z: a.z };
+    var r = e.rotationRate || {};
+    latest.gyro = { pitch: r.beta, roll: r.gamma, yaw: r.alpha };
+  }
+
+  function onDeviceOrientation(e){
+    haveOrientEvent = true;
+    latest.orient = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
+  }
+
+  function startListening(){
+    window.addEventListener('devicemotion', onDeviceMotion);
+    window.addEventListener('deviceorientation', onDeviceOrientation);
+    permissionPanel.hidden = true;
+    readouts.hidden = false;
+    setStatus('wait', 'Waiting for data');
+    renderTick();
+    tickTimer = setInterval(renderTick, 1000);
+
+    watchdogTimer = setTimeout(function(){
+      if (!haveMotionEvent && !haveOrientEvent){
+        setStatus('error', 'No sensor data');
+        permissionPanel.hidden = false;
+        permissionText.textContent = 'No motion data arrived. This works on an iPhone in Safari — it will not report real sensor values on a desktop browser or simulator.';
+        enableBtn.textContent = 'Retry';
+      } else {
+        setStatus('live', 'Live');
+      }
+    }, 2500);
+  }
+
+  function showDenied(results){
+    setStatus('error', 'Access denied');
+    permissionText.textContent = 'Motion access was denied. Look for "Motion & Orientation Access" near the bottom of Settings → Safari, or tap the "Aa" icon in Safari\'s address bar → Website Settings. If neither shows it, go to Settings → Safari → Advanced → Website Data, delete the entry for this site, then reopen this page and tap the button again — Safari will ask fresh.';
+    enableBtn.textContent = 'Try again';
+    renderDiagnostics('motion=' + results[0] + ', orientation=' + results[1]);
+  }
+
+  function setGeoNote(text){
+    if (!text){ geoNote.hidden = true; geoNote.textContent = ''; return; }
+    geoNote.hidden = false;
+    geoNote.textContent = text;
+  }
+
+  function startGeo(){
+    if (!('geolocation' in navigator)){
+      setGeoNote("Not supported by this browser.");
+      return;
+    }
+    setGeoNote('Waiting for GPS fix…');
+    geoWatchId = navigator.geolocation.watchPosition(function(pos){
+      latest.geo = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy };
+      setGeoNote(null);
+    }, function(err){
+      latest.geo = { lat: null, lon: null, acc: null };
+      if (err.code === err.PERMISSION_DENIED){
+        setGeoNote('Location denied. Enable it in Settings → Privacy & Security → Location Services → Safari Websites, then reload.');
+      } else if (err.code === err.TIMEOUT){
+        setGeoNote('Timed out waiting for a GPS fix. Try moving outdoors.');
+      } else {
+        setGeoNote('Location unavailable (' + err.message + ').');
+      }
+    }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 });
+  }
+
+  function requestAndStart(){
+    startGeo();
+
+    var needsMotionPerm = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
+    var needsOrientPerm = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
+
+    if (!needsMotionPerm && !needsOrientPerm){
+      startListening();
+      return;
+    }
+
+    setStatus('wait', 'Requesting…');
+    var motionPromise = needsMotionPerm ? DeviceMotionEvent.requestPermission() : Promise.resolve('granted');
+    var orientPromise = needsOrientPerm ? DeviceOrientationEvent.requestPermission() : Promise.resolve('granted');
+
+    Promise.all([motionPromise, orientPromise]).then(function(results){
+      if (results[0] === 'granted' && results[1] === 'granted'){
+        startListening();
+      } else {
+        showDenied(results);
+      }
+    }).catch(function(err){
+      setStatus('error', 'Error');
+      permissionText.textContent = 'Could not request sensor access. Make sure this page is open in Safari on an iPhone.';
+      enableBtn.textContent = 'Try again';
+      renderDiagnostics('error: ' + (err && err.name ? err.name + ' — ' : '') + (err && err.message ? err.message : String(err)));
+    });
+  }
+
+  if (typeof window.DeviceMotionEvent === 'undefined' && typeof window.DeviceOrientationEvent === 'undefined'){
+    setStatus('error', 'Unsupported');
+    permissionText.textContent = "This browser doesn't report motion sensor data. Open this page on an iPhone in Safari.";
+    enableBtn.hidden = true;
+  }
+
+  enableBtn.addEventListener('click', requestAndStart);
+})();
+</script>

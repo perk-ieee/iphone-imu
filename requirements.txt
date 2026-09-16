@@ -1,0 +1,6 @@
+An iPhone web app to read the IMU and display the results
+
+1.) the web page will be depolyable as a private link to antrophic's .ai domain
+2.) it will work with an iPhone
+3.) it will read the iPhone's IMU and displaya all 9 axis values
+4.) it will update once per second
