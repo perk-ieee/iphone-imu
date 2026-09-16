@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Motion Readout</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
@@ -28,19 +33,20 @@
   }
 
   *{box-sizing:border-box;}
+  html{ font-size:18px; }
   body{
     background:var(--bg); color:var(--text); font-family:var(--font-ui);
     padding-inline:16px; padding-block:24px 40px;
   }
-  .page{ max-width:480px; margin-inline:auto; display:flex; flex-direction:column; gap:16px; }
+  .page{ max-width:520px; margin-inline:auto; display:flex; flex-direction:column; gap:18px; }
 
   header{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
-  .title-block h1{ margin:0; font-size:1.3rem; font-weight:600; letter-spacing:-0.01em; }
-  .title-block p{ margin:4px 0 0; font-size:0.82rem; color:var(--text-dim); max-width:34ch; }
+  .title-block h1{ margin:0; font-size:1.7rem; font-weight:600; letter-spacing:-0.01em; }
+  .title-block p{ margin:6px 0 0; font-size:0.95rem; color:var(--text-dim); max-width:34ch; }
 
   .status-pill{
-    display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px;
-    font-size:0.72rem; font-weight:600; letter-spacing:0.02em; text-transform:uppercase;
+    display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px;
+    font-size:0.8rem; font-weight:600; letter-spacing:0.02em; text-transform:uppercase;
     white-space:nowrap; flex-shrink:0;
   }
   .status-pill .dot{ width:7px; height:7px; border-radius:50%; background:currentColor; }
@@ -56,42 +62,50 @@
     background:var(--surface); border:1px solid var(--border); border-radius:14px;
     padding:18px; display:flex; flex-direction:column; gap:12px;
   }
-  .panel p{ margin:0; font-size:0.86rem; color:var(--text-dim); line-height:1.5; }
+  .panel p{ margin:0; font-size:1rem; color:var(--text-dim); line-height:1.5; }
   .btn{
-    appearance:none; border:none; border-radius:10px; padding:12px 18px;
+    appearance:none; border:none; border-radius:10px; padding:15px 18px;
     background:var(--accent); color:var(--accent-ink); font-family:var(--font-ui);
-    font-size:0.92rem; font-weight:600; cursor:pointer; width:100%;
+    font-size:1.05rem; font-weight:600; cursor:pointer; width:100%;
   }
   .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
   .btn:active{ opacity:0.85; }
   .btn-secondary{ background:var(--surface-2); color:var(--text); border:1px solid var(--border); }
 
-  .meta-row{ display:flex; justify-content:space-between; align-items:baseline; font-size:0.72rem; color:var(--text-faint); }
-  .meta-row span.rate{ font-family:var(--font-mono); background:var(--surface-2); padding:2px 7px; border-radius:6px; }
+  .meta-row{ display:flex; justify-content:space-between; align-items:baseline; font-size:0.82rem; color:var(--text-faint); }
+  .meta-row span.rate{ font-family:var(--font-mono); background:var(--surface-2); padding:3px 8px; border-radius:6px; }
 
   .sensor-card{
-    background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px;
-    display:flex; flex-direction:column; gap:12px;
+    background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px;
+    display:flex; flex-direction:column; gap:14px;
   }
   .sensor-card .card-head{ display:flex; align-items:center; gap:8px; }
-  .swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
-  .sensor-card h2{ margin:0; font-size:0.86rem; font-weight:600; }
-  .sensor-card .card-head .unit{ margin-left:auto; font-size:0.7rem; color:var(--text-faint); font-family:var(--font-mono); }
+  .swatch{ width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+  .sensor-card h2{ margin:0; font-size:1.05rem; font-weight:600; }
+  .sensor-card .card-head .unit{ margin-left:auto; font-size:0.8rem; color:var(--text-faint); font-family:var(--font-mono); }
 
   .axes{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-  .axis{ display:flex; flex-direction:column; gap:6px; min-width:0; }
-  .axis .label{ font-size:0.68rem; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em; }
-  .axis .value{ font-family:var(--font-mono); font-size:1.15rem; font-weight:500; font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .axis .track{ height:4px; border-radius:2px; background:var(--surface-2); position:relative; overflow:hidden; }
-  .axis .fill{ position:absolute; top:0; bottom:0; left:0; width:0%; border-radius:2px; transition:width 0.25s ease; }
+  #geoAxes{ grid-template-columns:1fr; }
+  #geoAxes .axis{ flex-direction:row; align-items:center; gap:12px; }
+  #geoAxes .axis .label{ flex:0 0 auto; width:6.5em; }
+  #geoAxes .axis .value{ flex:0 0 auto; }
+  #geoAxes .axis .track{ flex:1 1 auto; }
+  .axis{ display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .axis .label{ font-size:0.78rem; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em; }
+  .axis .value{ font-family:var(--font-mono); font-size:1.4rem; font-weight:500; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  #geoAxes .axis .value{ font-size:1.5rem; }
+  .axis .track{ height:5px; border-radius:3px; background:var(--surface-2); position:relative; overflow:hidden; }
+  .axis .fill{ position:absolute; top:0; bottom:0; left:0; width:0%; border-radius:3px; transition:width 0.25s ease; }
 
-  .geo-note{ margin:0; font-size:0.76rem; color:var(--text-faint); }
+  .geo-note{ margin:0; font-size:0.88rem; color:var(--text-faint); }
 
-  footer{ font-size:0.74rem; color:var(--text-faint); line-height:1.5; padding-top:4px; }
+  footer{ font-size:0.85rem; color:var(--text-faint); line-height:1.55; padding-top:4px; }
   footer a{ color:inherit; }
 
   [hidden]{ display:none !important; }
 </style>
+</head>
+<body>
 
 <div class="page">
   <header>
@@ -365,3 +379,5 @@
   enableBtn.addEventListener('click', requestAndStart);
 })();
 </script>
+</body>
+</html>
