@@ -87,7 +87,7 @@
   .axes{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
   #geoAxes{ grid-template-columns:1fr; }
   #geoAxes .axis{ flex-direction:row; align-items:center; gap:12px; }
-  #geoAxes .axis .label{ flex:0 0 auto; width:6.5em; }
+  #geoAxes .axis .label{ flex:0 0 auto; width:8.2em; }
   #geoAxes .axis .value{ flex:0 0 auto; }
   #geoAxes .axis .track{ flex:1 1 auto; }
   .axis{ display:flex; flex-direction:column; gap:8px; min-width:0; }
@@ -133,9 +133,12 @@
       <div class="axes" id="geoAxes">
         <div class="axis" data-axis="lat"><span class="label">Latitude</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
         <div class="axis" data-axis="lon"><span class="label">Longitude</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="om"><span class="label">Open-Meteo °C</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="nws"><span class="label">NWS °C</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
         <div class="axis" data-axis="acc"><span class="label">Accuracy (m)</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
       </div>
       <p class="geo-note" id="geoNote" hidden></p>
+      <p class="geo-note" id="tempNote" hidden></p>
     </section>
 
     <section class="sensor-card">
@@ -185,7 +188,7 @@
   </div>
 
   <footer>
-    Mobile browsers don't expose a phone's raw magnetometer to web pages, so the third triad shown here is fused orientation (compass heading, tilt, roll) rather than raw magnetic field — the closest 3-axis substitute available in-browser, on iPhone or Android. Location comes from the device's GPS/location services and is requested separately from motion access. Works on any modern phone browser; sensor and permission behavior is detected automatically.
+    Mobile browsers don't expose a phone's raw magnetometer to web pages, so the third triad shown here is fused orientation (compass heading, tilt, roll) rather than raw magnetic field — the closest 3-axis substitute available in-browser, on iPhone or Android. Location comes from the device's GPS/location services and is requested separately from motion access. The two temperature readings are weather estimates for your GPS coordinates from Open-Meteo and the US National Weather Service (NWS, US locations only) — not a physical sensor on the phone — refreshed every few minutes or when you move more than ~2 km. Works on any modern phone browser; sensor and permission behavior is detected automatically.
   </footer>
 </div>
 
@@ -199,6 +202,7 @@
   var readouts = document.getElementById('readouts');
   var lastUpdate = document.getElementById('lastUpdate');
   var geoNote = document.getElementById('geoNote');
+  var tempNote = document.getElementById('tempNote');
   var headingNote = document.getElementById('headingNote');
   var diagText = document.getElementById('diagText');
 
@@ -220,7 +224,7 @@
   }
   renderDiagnostics();
 
-  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null} };
+  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null,om:null,nws:null} };
   var haveMotionEvent = false, haveOrientEvent = false;
   var tickTimer = null, watchdogTimer = null, geoWatchId = null;
 
@@ -232,7 +236,8 @@
     orient_gamma: [-90, 90],
     geo_lat: [-90, 90],
     geo_lon: [-180, 180],
-    geo_acc: [0, 100]
+    geo_acc: [0, 100],
+    temp: [-40, 50]
   };
 
   function setStatus(kind, label){
@@ -276,6 +281,8 @@
 
     paintAxis('geoAxes', 'lat', latest.geo.lat, 4, RANGES.geo_lat);
     paintAxis('geoAxes', 'lon', latest.geo.lon, 4, RANGES.geo_lon);
+    paintAxis('geoAxes', 'om',  latest.geo.om,  1, RANGES.temp);
+    paintAxis('geoAxes', 'nws', latest.geo.nws, 1, RANGES.temp);
     paintAxis('geoAxes', 'acc', latest.geo.acc, 0, RANGES.geo_acc);
 
     lastUpdate.textContent = 'Updated ' + new Date().toLocaleTimeString();
@@ -358,6 +365,89 @@
     geoNote.textContent = text;
   }
 
+  var weatherStatus = { om: null, nws: null };
+  var lastWeatherFetch = { lat: null, lon: null, time: 0 };
+
+  function renderTempNote(){
+    var msgs = [];
+    if (weatherStatus.om) msgs.push('Open-Meteo: ' + weatherStatus.om);
+    if (weatherStatus.nws) msgs.push('NWS: ' + weatherStatus.nws);
+    if (msgs.length){ tempNote.hidden = false; tempNote.textContent = msgs.join(' · '); }
+    else { tempNote.hidden = true; tempNote.textContent = ''; }
+  }
+
+  function haversineKm(lat1, lon1, lat2, lon2){
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function fetchOpenMeteo(lat, lon){
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current=temperature_2m')
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data){
+        var t = data.current && data.current.temperature_2m;
+        if (t === undefined) throw new Error('NO_READING');
+        latest.geo.om = t;
+        weatherStatus.om = null;
+        renderTempNote();
+      })
+      .catch(function(){
+        latest.geo.om = null;
+        weatherStatus.om = 'unavailable';
+        renderTempNote();
+      });
+  }
+
+  function fetchNWS(lat, lon){
+    fetch('https://api.weather.gov/points/' + lat.toFixed(4) + ',' + lon.toFixed(4))
+      .then(function(r){
+        if (!r.ok) throw new Error(r.status === 404 ? 'NO_COVERAGE' : 'HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(data){
+        var stationsUrl = data.properties && data.properties.observationStations;
+        if (!stationsUrl) throw new Error('NO_STATIONS');
+        return fetch(stationsUrl);
+      })
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data){
+        var feat = data.features && data.features[0];
+        if (!feat) throw new Error('NO_STATIONS');
+        return fetch(feat.id + '/observations/latest');
+      })
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data){
+        var t = data.properties && data.properties.temperature && data.properties.temperature.value;
+        if (t === null || t === undefined) throw new Error('NO_READING');
+        latest.geo.nws = t;
+        weatherStatus.nws = null;
+        renderTempNote();
+      })
+      .catch(function(err){
+        latest.geo.nws = null;
+        weatherStatus.nws = (err && err.message === 'NO_COVERAGE') ? 'no coverage here (US only)' : 'unavailable';
+        renderTempNote();
+      });
+  }
+
+  function maybeFetchWeather(lat, lon){
+    var now = Date.now();
+    var moved = lastWeatherFetch.lat === null || haversineKm(lat, lon, lastWeatherFetch.lat, lastWeatherFetch.lon) > 2;
+    var stale = (now - lastWeatherFetch.time) > 10 * 60 * 1000;
+    if (!moved && !stale) return;
+    lastWeatherFetch = { lat: lat, lon: lon, time: now };
+    weatherStatus.om = 'fetching…';
+    weatherStatus.nws = 'fetching…';
+    renderTempNote();
+    fetchOpenMeteo(lat, lon);
+    fetchNWS(lat, lon);
+  }
+
   function startGeo(){
     if (!('geolocation' in navigator)){
       setGeoNote("Not supported by this browser.");
@@ -365,10 +455,13 @@
     }
     setGeoNote('Waiting for GPS fix…');
     geoWatchId = navigator.geolocation.watchPosition(function(pos){
-      latest.geo = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy };
+      latest.geo.lat = pos.coords.latitude;
+      latest.geo.lon = pos.coords.longitude;
+      latest.geo.acc = pos.coords.accuracy;
       setGeoNote(null);
+      maybeFetchWeather(pos.coords.latitude, pos.coords.longitude);
     }, function(err){
-      latest.geo = { lat: null, lon: null, acc: null };
+      latest.geo.lat = null; latest.geo.lon = null; latest.geo.acc = null;
       if (err.code === err.PERMISSION_DENIED){
         if (isIOS){
           setGeoNote('Location denied. Enable it in Settings → Privacy & Security → Location Services → Safari Websites, then reload.');
