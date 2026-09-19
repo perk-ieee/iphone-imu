@@ -366,7 +366,10 @@
   }
 
   var weatherStatus = { om: null, nws: null };
-  var lastWeatherFetch = { lat: null, lon: null, time: 0 };
+  var lastFetch = {
+    om:  { lat: null, lon: null, time: 0 },
+    nws: { lat: null, lon: null, time: 0 }
+  };
 
   function renderTempNote(){
     var msgs = [];
@@ -396,9 +399,9 @@
         weatherStatus.om = null;
         renderTempNote();
       })
-      .catch(function(){
+      .catch(function(err){
         latest.geo.om = null;
-        weatherStatus.om = 'unavailable';
+        weatherStatus.om = 'unavailable (' + (err && err.message ? err.message : 'network error') + ')';
         renderTempNote();
       });
   }
@@ -430,22 +433,29 @@
       })
       .catch(function(err){
         latest.geo.nws = null;
-        weatherStatus.nws = (err && err.message === 'NO_COVERAGE') ? 'no coverage here (US only)' : 'unavailable';
+        var msg = err && err.message;
+        weatherStatus.nws = (msg === 'NO_COVERAGE') ? 'no coverage here (US only)' : 'unavailable (' + (msg || 'network error') + ')';
         renderTempNote();
       });
   }
 
-  function maybeFetchWeather(lat, lon){
+  function maybeFetchSource(name, fetchFn, lat, lon){
+    var rec = lastFetch[name];
     var now = Date.now();
-    var moved = lastWeatherFetch.lat === null || haversineKm(lat, lon, lastWeatherFetch.lat, lastWeatherFetch.lon) > 2;
-    var stale = (now - lastWeatherFetch.time) > 10 * 60 * 1000;
-    if (!moved && !stale) return;
-    lastWeatherFetch = { lat: lat, lon: lon, time: now };
-    weatherStatus.om = 'fetching…';
-    weatherStatus.nws = 'fetching…';
+    var moved = rec.lat === null || haversineKm(lat, lon, rec.lat, rec.lon) > 2;
+    var failed = weatherStatus[name] && weatherStatus[name] !== 'fetching…';
+    var interval = failed ? 60 * 1000 : 10 * 60 * 1000;
+    var due = (now - rec.time) > interval;
+    if (!moved && !due) return;
+    rec.lat = lat; rec.lon = lon; rec.time = now;
+    weatherStatus[name] = 'fetching…';
     renderTempNote();
-    fetchOpenMeteo(lat, lon);
-    fetchNWS(lat, lon);
+    fetchFn(lat, lon);
+  }
+
+  function maybeFetchWeather(lat, lon){
+    maybeFetchSource('om', fetchOpenMeteo, lat, lon);
+    maybeFetchSource('nws', fetchNWS, lat, lon);
   }
 
   function startGeo(){
