@@ -134,8 +134,8 @@
         <div class="axis" data-axis="lat"><span class="label">Latitude</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
         <div class="axis" data-axis="lon"><span class="label">Longitude</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
         <div class="axis" data-axis="acc"><span class="label">Accuracy (m)</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
-        <div class="axis" data-axis="om"><span class="label">Open-Meteo °F</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
-        <div class="axis" data-axis="nws"><span class="label">NWS °F</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="kbdu"><span class="label">NWS KBDU °F</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="keik"><span class="label">NWS KEIK °F</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
         <div class="axis" data-axis="nwsP"><span class="label">NWS inHg</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
         <div class="axis" data-axis="nwsH"><span class="label">NWS RH %</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
       </div>
@@ -206,7 +206,7 @@
   </div>
 
   <footer>
-    Mobile browsers don't expose a phone's raw magnetometer to web pages, so the third triad shown here is fused orientation (compass heading, tilt, roll) rather than raw magnetic field — the closest 3-axis substitute available in-browser, on iPhone or Android. Location comes from the device's GPS/location services and is requested separately from motion access. The two temperature readings are weather estimates for your GPS coordinates from Open-Meteo and the US National Weather Service (NWS, US locations only) — not a physical sensor on the phone — refreshed every few minutes or when you move more than ~2 km. Works on any modern phone browser; sensor and permission behavior is detected automatically.
+    Mobile browsers don't expose a phone's raw magnetometer to web pages, so the third triad shown here is fused orientation (compass heading, tilt, roll) rather than raw magnetic field — the closest 3-axis substitute available in-browser, on iPhone or Android. Location comes from the device's GPS/location services and is requested separately from motion access. The NWS pressure and humidity readings come from the station nearest your GPS coordinates (US locations only), refreshed every few minutes or when you move more than ~2 km; the KBDU (Boulder) and KEIK (Erie) temperatures are fixed stations, refreshed every 5 minutes. None of these are physical sensors on the phone. Works on any modern phone browser; sensor and permission behavior is detected automatically.
   </footer>
 </div>
 
@@ -242,7 +242,7 @@
   }
   renderDiagnostics();
 
-  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null,om:null,nws:null,nwsP:null,nwsH:null}, tavino:{temp:null,wind:null,baro:null,hum:null,rain:null} };
+  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null,kbdu:null,keik:null,nwsP:null,nwsH:null}, tavino:{temp:null,wind:null,baro:null,hum:null,rain:null} };
   var haveMotionEvent = false, haveOrientEvent = false;
   var tickTimer = null, watchdogTimer = null, geoWatchId = null;
 
@@ -304,8 +304,8 @@
     paintAxis('geoAxes', 'lat', latest.geo.lat, 4, RANGES.geo_lat);
     paintAxis('geoAxes', 'lon', latest.geo.lon, 4, RANGES.geo_lon);
     paintAxis('geoAxes', 'acc', latest.geo.acc, 0, RANGES.geo_acc);
-    paintAxis('geoAxes', 'om',  latest.geo.om,  1, RANGES.temp);
-    paintAxis('geoAxes', 'nws', latest.geo.nws, 1, RANGES.temp);
+    paintAxis('geoAxes', 'kbdu', latest.geo.kbdu, 1, RANGES.temp);
+    paintAxis('geoAxes', 'keik', latest.geo.keik, 1, RANGES.temp);
     paintAxis('geoAxes', 'nwsP', latest.geo.nwsP, 2, RANGES.pressure);
     paintAxis('geoAxes', 'nwsH', latest.geo.nwsH, 0, RANGES.humidity);
 
@@ -395,15 +395,15 @@
     geoNote.textContent = text;
   }
 
-  var weatherStatus = { om: null, nws: null };
+  var weatherStatus = { kbdu: null, keik: null, nws: null };
   var lastFetch = {
-    om:  { lat: null, lon: null, time: 0 },
     nws: { lat: null, lon: null, time: 0 }
   };
 
   function renderTempNote(){
     var msgs = [];
-    if (weatherStatus.om) msgs.push('Open-Meteo: ' + weatherStatus.om);
+    if (weatherStatus.kbdu) msgs.push('KBDU: ' + weatherStatus.kbdu);
+    if (weatherStatus.keik) msgs.push('KEIK: ' + weatherStatus.keik);
     if (weatherStatus.nws) msgs.push('NWS: ' + weatherStatus.nws);
     if (msgs.length){ tempNote.hidden = false; tempNote.textContent = msgs.join(' · '); }
     else { tempNote.hidden = true; tempNote.textContent = ''; }
@@ -419,22 +419,29 @@
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
-  function fetchOpenMeteo(lat, lon){
-    fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current=temperature_2m&temperature_unit=fahrenheit')
+  // Fixed stations, independent of GPS.
+  function fetchStationTemp(id, key){
+    fetch('https://api.weather.gov/stations/' + id + '/observations/latest')
       .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(data){
-        var t = data.current && data.current.temperature_2m;
-        if (t === undefined) throw new Error('NO_READING');
-        latest.geo.om = t;
-        weatherStatus.om = null;
+        var c = data.properties && data.properties.temperature && data.properties.temperature.value;
+        if (c === null || c === undefined) throw new Error('NO_READING');
+        latest.geo[key] = c * 9 / 5 + 32;
+        weatherStatus[key] = null;
         renderTempNote();
       })
       .catch(function(err){
-        latest.geo.om = null;
-        weatherStatus.om = 'unavailable (' + (err && err.message ? err.message : 'network error') + ')';
+        latest.geo[key] = null;
+        weatherStatus[key] = 'unavailable (' + (err && err.message ? err.message : 'network error') + ')';
         renderTempNote();
       });
   }
+  function fetchFixedStations(){
+    fetchStationTemp('KBDU', 'kbdu');
+    fetchStationTemp('KEIK', 'keik');
+  }
+  fetchFixedStations();
+  setInterval(fetchFixedStations, 5 * 60 * 1000);
 
   // The nearest station often lacks a pressure sensor; try the next few in order.
   var NWS_PRESSURE_STATIONS = 5;
@@ -470,9 +477,6 @@
       })
       .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(data){
-        var c = data.properties && data.properties.temperature && data.properties.temperature.value;
-        if (c === null || c === undefined) throw new Error('NO_READING');
-        latest.geo.nws = c * 9 / 5 + 32;
         var np = data.properties.barometricPressure && data.properties.barometricPressure.value;
         var nh = data.properties.relativeHumidity && data.properties.relativeHumidity.value;
         latest.geo.nwsP = (np === null || np === undefined) ? null : np / 3386.39;
@@ -482,7 +486,7 @@
         if (latest.geo.nwsP === null) fallbackPressure(stations, 1);
       })
       .catch(function(err){
-        latest.geo.nws = null; latest.geo.nwsP = null; latest.geo.nwsH = null;
+        latest.geo.nwsP = null; latest.geo.nwsH = null;
         var msg = err && err.message;
         weatherStatus.nws = (msg === 'NO_COVERAGE') ? 'no coverage here (US only)' : 'unavailable (' + (msg || 'network error') + ')';
         renderTempNote();
@@ -524,7 +528,6 @@
   }
 
   function maybeFetchWeather(lat, lon){
-    maybeFetchSource('om', fetchOpenMeteo, lat, lon);
     maybeFetchSource('nws', fetchNWS, lat, lon);
   }
 
