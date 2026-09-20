@@ -541,9 +541,20 @@
     maybeFetchSource('nws', fetchNWS, lat, lon);
   }
 
+  var DEFAULT_LOCATION = { lat: 39.9843, lon: -105.1509 };
+
+  // Used when the device has no location sensor; a real fix later overrides it.
+  function useDefaultLocation(reason){
+    latest.geo.lat = DEFAULT_LOCATION.lat;
+    latest.geo.lon = DEFAULT_LOCATION.lon;
+    latest.geo.acc = null;
+    setGeoNote(reason + ' Using default location.');
+    maybeFetchWeather(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon);
+  }
+
   function startGeo(){
     if (!('geolocation' in navigator)){
-      setGeoNote("Not supported by this browser.");
+      useDefaultLocation('No location sensor available.');
       return;
     }
     setGeoNote('Waiting for GPS fix…');
@@ -555,7 +566,9 @@
       maybeFetchWeather(pos.coords.latitude, pos.coords.longitude);
     }, function(err){
       latest.geo.lat = null; latest.geo.lon = null; latest.geo.acc = null;
-      if (err.code === err.PERMISSION_DENIED){
+      if (err.code === err.POSITION_UNAVAILABLE){
+        useDefaultLocation('No location sensor available (' + err.message + ').');
+      } else if (err.code === err.PERMISSION_DENIED){
         if (isIOS){
           setGeoNote('Location denied. Enable it in Settings → Privacy & Security → Location Services → Safari Websites, then reload.');
         } else if (isAndroid){
