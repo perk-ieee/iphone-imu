@@ -127,7 +127,7 @@
     <section class="sensor-card">
       <div class="card-head">
         <span class="swatch" style="background:var(--geo)"></span>
-        <h2>Location and Temperature</h2>
+        <h2>Location and NWS Data</h2>
         <span class="unit">GPS</span>
       </div>
       <div class="axes" id="geoAxes">
@@ -141,6 +141,22 @@
       </div>
       <p class="geo-note" id="geoNote" hidden></p>
       <p class="geo-note" id="tempNote" hidden></p>
+    </section>
+
+    <section class="sensor-card">
+      <div class="card-head">
+        <span class="swatch" style="background:var(--geo)"></span>
+        <h2>Tavino Homestead</h2>
+        <span class="unit">Ambient Weather</span>
+      </div>
+      <div class="axes" id="tavinoAxes">
+        <div class="axis" data-axis="temp"><span class="label">Temp °F</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="wind"><span class="label">Wind mph</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="baro"><span class="label">Pressure inHg</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="hum"><span class="label">Humidity %</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="rain"><span class="label">Rain in/hr</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+      </div>
+      <p class="geo-note" id="tavinoNote" hidden></p>
     </section>
 
     <section class="sensor-card">
@@ -226,7 +242,7 @@
   }
   renderDiagnostics();
 
-  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null,om:null,nws:null,nwsP:null,nwsH:null} };
+  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null,om:null,nws:null,nwsP:null,nwsH:null}, tavino:{temp:null,wind:null,baro:null,hum:null,rain:null} };
   var haveMotionEvent = false, haveOrientEvent = false;
   var tickTimer = null, watchdogTimer = null, geoWatchId = null;
 
@@ -241,7 +257,9 @@
     geo_acc: [0, 100],
     temp: [-40, 120],
     pressure: [25, 32],
-    humidity: [0, 100]
+    humidity: [0, 100],
+    wind: [0, 40],
+    rain: [0, 1]
   };
 
   function setStatus(kind, label){
@@ -290,6 +308,12 @@
     paintAxis('geoAxes', 'nws', latest.geo.nws, 1, RANGES.temp);
     paintAxis('geoAxes', 'nwsP', latest.geo.nwsP, 2, RANGES.pressure);
     paintAxis('geoAxes', 'nwsH', latest.geo.nwsH, 0, RANGES.humidity);
+
+    paintAxis('tavinoAxes', 'temp', latest.tavino.temp, 1, RANGES.temp);
+    paintAxis('tavinoAxes', 'wind', latest.tavino.wind, 1, RANGES.wind);
+    paintAxis('tavinoAxes', 'baro', latest.tavino.baro, 2, RANGES.pressure);
+    paintAxis('tavinoAxes', 'hum',  latest.tavino.hum,  0, RANGES.humidity);
+    paintAxis('tavinoAxes', 'rain', latest.tavino.rain, 2, RANGES.rain);
 
     lastUpdate.textContent = 'Updated ' + new Date().toLocaleTimeString();
   }
@@ -464,6 +488,26 @@
         renderTempNote();
       });
   }
+
+  var tavinoNote = document.getElementById('tavinoNote');
+  var TAVINO_URL = 'https://lightning.ambientweather.net/devices?public.slug=fb5a983a1326ed6d5492f488e5c632cb';
+  function fetchTavino(){
+    fetch(TAVINO_URL)
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(j){
+        var d = j && j.data && j.data[0] && j.data[0].lastData;
+        if (!d) throw new Error('no data');
+        latest.tavino = { temp: d.tempf, wind: d.windspeedmph, baro: d.baromrelin, hum: d.humidity, rain: d.hourlyrainin };
+        tavinoNote.hidden = true;
+      })
+      .catch(function(err){
+        latest.tavino = { temp:null, wind:null, baro:null, hum:null, rain:null };
+        tavinoNote.hidden = false;
+        tavinoNote.textContent = 'Tavino Homestead unavailable (' + (err && err.message || 'network error') + ').';
+      });
+  }
+  fetchTavino();
+  setInterval(fetchTavino, 5 * 60 * 1000);
 
   function maybeFetchSource(name, fetchFn, lat, lon){
     var rec = lastFetch[name];
