@@ -419,7 +419,22 @@
       });
   }
 
+  // The nearest station often lacks a pressure sensor; try the next few in order.
+  var NWS_PRESSURE_STATIONS = 5;
+  function fallbackPressure(stations, i){
+    if (i >= stations.length || i >= NWS_PRESSURE_STATIONS) return;
+    fetch(stations[i].id + '/observations/latest')
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data){
+        var np = data.properties && data.properties.barometricPressure && data.properties.barometricPressure.value;
+        if (np === null || np === undefined) return fallbackPressure(stations, i + 1);
+        latest.geo.nwsP = np / 3386.39;
+      })
+      .catch(function(){ fallbackPressure(stations, i + 1); });
+  }
+
   function fetchNWS(lat, lon){
+    var stations = [];
     fetch('https://api.weather.gov/points/' + lat.toFixed(4) + ',' + lon.toFixed(4))
       .then(function(r){
         if (!r.ok) throw new Error(r.status === 404 ? 'NO_COVERAGE' : 'HTTP ' + r.status);
@@ -432,9 +447,9 @@
       })
       .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(data){
-        var feat = data.features && data.features[0];
-        if (!feat) throw new Error('NO_STATIONS');
-        return fetch(feat.id + '/observations/latest');
+        stations = data.features || [];
+        if (!stations[0]) throw new Error('NO_STATIONS');
+        return fetch(stations[0].id + '/observations/latest');
       })
       .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(data){
@@ -447,6 +462,7 @@
         latest.geo.nwsH = (nh === null || nh === undefined) ? null : nh;
         weatherStatus.nws = null;
         renderTempNote();
+        if (latest.geo.nwsP === null) fallbackPressure(stations, 1);
       })
       .catch(function(err){
         latest.geo.nws = null; latest.geo.nwsP = null; latest.geo.nwsH = null;
