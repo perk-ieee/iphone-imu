@@ -552,35 +552,43 @@
     maybeFetchWeather(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon);
   }
 
+  var gotFix = false, noFixTimer = null;
+
   function startGeo(){
     if (!('geolocation' in navigator)){
       useDefaultLocation('No location sensor available.');
       return;
     }
     setGeoNote('Waiting for GPS fix…');
+    // A pending permission prompt never errors, so fall back if no fix arrives in time.
+    noFixTimer = setTimeout(function(){
+      if (!gotFix) useDefaultLocation('No GPS fix yet.');
+    }, 8000);
     geoWatchId = navigator.geolocation.watchPosition(function(pos){
+      gotFix = true;
+      clearTimeout(noFixTimer);
       latest.geo.lat = pos.coords.latitude;
       latest.geo.lon = pos.coords.longitude;
       latest.geo.acc = pos.coords.accuracy;
       setGeoNote(null);
       maybeFetchWeather(pos.coords.latitude, pos.coords.longitude);
     }, function(err){
-      latest.geo.lat = null; latest.geo.lon = null; latest.geo.acc = null;
-      if (err.code === err.POSITION_UNAVAILABLE){
-        useDefaultLocation('No location sensor available (' + err.message + ').');
-      } else if (err.code === err.PERMISSION_DENIED){
+      if (gotFix) return;
+      var reason;
+      if (err.code === err.PERMISSION_DENIED){
         if (isIOS){
-          setGeoNote('Location denied. Enable it in Settings → Privacy & Security → Location Services → Safari Websites, then reload.');
+          reason = 'Location denied. Enable it in Settings → Privacy & Security → Location Services → Safari Websites, then reload.';
         } else if (isAndroid){
-          setGeoNote('Location denied. Tap the lock/info icon next to the address bar → Permissions → Location → Allow, or check Settings → Apps → [your browser] → Permissions → Location, then reload.');
+          reason = 'Location denied. Tap the lock/info icon next to the address bar → Permissions → Location → Allow, or check Settings → Apps → [your browser] → Permissions → Location, then reload.';
         } else {
-          setGeoNote('Location denied. Check your browser\'s site permissions for this page, then reload.');
+          reason = 'Location denied. Check your browser\'s site permissions for this page, then reload.';
         }
       } else if (err.code === err.TIMEOUT){
-        setGeoNote('Timed out waiting for a GPS fix. Try moving outdoors.');
+        reason = 'Timed out waiting for a GPS fix.';
       } else {
-        setGeoNote('Location unavailable (' + err.message + ').');
+        reason = 'No location sensor available (' + err.message + ').';
       }
+      useDefaultLocation(reason);
     }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 });
   }
 
