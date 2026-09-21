@@ -176,6 +176,20 @@
 
     <section class="sensor-card">
       <div class="card-head">
+        <span class="swatch" style="background:var(--orient)"></span>
+        <h2>Orientation</h2>
+        <span class="unit">°</span>
+      </div>
+      <div class="axes" id="orientAxes">
+        <div class="axis" data-axis="alpha"><span class="label">Heading</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
+        <div class="axis" data-axis="beta"><span class="label">Pitch</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
+        <div class="axis" data-axis="gamma"><span class="label">Roll</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
+      </div>
+      <p class="geo-note" id="headingNote" hidden></p>
+    </section>
+
+    <section class="sensor-card">
+      <div class="card-head">
         <span class="swatch" style="background:var(--accel)"></span>
         <h2>Accelerometer</h2>
         <span class="unit">m/s²</span>
@@ -198,20 +212,6 @@
         <div class="axis" data-axis="roll"><span class="label">Roll</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--gyro)"></div></div></div>
         <div class="axis" data-axis="yaw"><span class="label">Yaw</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--gyro)"></div></div></div>
       </div>
-    </section>
-
-    <section class="sensor-card">
-      <div class="card-head">
-        <span class="swatch" style="background:var(--orient)"></span>
-        <h2>Orientation</h2>
-        <span class="unit">°</span>
-      </div>
-      <div class="axes" id="orientAxes">
-        <div class="axis" data-axis="alpha"><span class="label">Heading</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
-        <div class="axis" data-axis="beta"><span class="label">Pitch</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
-        <div class="axis" data-axis="gamma"><span class="label">Roll</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--orient)"></div></div></div>
-      </div>
-      <p class="geo-note" id="headingNote" hidden></p>
     </section>
 
     <div class="meta-row">
