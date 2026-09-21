@@ -161,6 +161,21 @@
 
     <section class="sensor-card">
       <div class="card-head">
+        <span class="swatch" style="background:var(--geo)"></span>
+        <h2>Compass and Motion</h2>
+        <span class="unit">iPhone</span>
+      </div>
+      <div class="axes" id="navAxes">
+        <div class="axis" data-axis="wkHeading"><span class="label">Compass heading °</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="wkAcc"><span class="label">Compass accuracy °</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="speed"><span class="label">Speed mph</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="alt"><span class="label">Altitude ft</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="altAcc"><span class="label">Altitude accuracy ft</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+      </div>
+    </section>
+
+    <section class="sensor-card">
+      <div class="card-head">
         <span class="swatch" style="background:var(--accel)"></span>
         <h2>Accelerometer</h2>
         <span class="unit">m/s²</span>
@@ -242,7 +257,7 @@
   }
   renderDiagnostics();
 
-  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null,nws1:null,nws2:null,nwsP:null,nwsH:null}, tavino:{temp:null,wind:null,baro:null,hum:null,rain:null} };
+  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null,nws1:null,nws2:null,nwsP:null,nwsH:null}, tavino:{temp:null,wind:null,baro:null,hum:null,rain:null}, nav:{wkHeading:null,wkAcc:null,speed:null,alt:null,altAcc:null} };
   var haveMotionEvent = false, haveOrientEvent = false;
   var tickTimer = null, watchdogTimer = null, geoWatchId = null;
 
@@ -259,7 +274,12 @@
     pressure: [25, 32],
     humidity: [0, 100],
     wind: [0, 40],
-    rain: [0, 1]
+    rain: [0, 1],
+    wkHeading: [0, 360],
+    wkAcc: [0, 50],
+    speed: [0, 70],
+    alt: [0, 15000],
+    altAcc: [0, 150]
   };
 
   function setStatus(kind, label){
@@ -315,6 +335,12 @@
     paintAxis('tavinoAxes', 'hum',  latest.tavino.hum,  0, RANGES.humidity);
     paintAxis('tavinoAxes', 'rain', latest.tavino.rain, 2, RANGES.rain);
 
+    paintAxis('navAxes', 'wkHeading', latest.nav.wkHeading, 0, RANGES.wkHeading);
+    paintAxis('navAxes', 'wkAcc',     latest.nav.wkAcc,     0, RANGES.wkAcc);
+    paintAxis('navAxes', 'speed',     latest.nav.speed,     1, RANGES.speed);
+    paintAxis('navAxes', 'alt',       latest.nav.alt,       0, RANGES.alt);
+    paintAxis('navAxes', 'altAcc',    latest.nav.altAcc,    0, RANGES.altAcc);
+
     lastUpdate.textContent = 'Updated ' + new Date().toLocaleTimeString();
   }
 
@@ -339,7 +365,11 @@
 
   function onDeviceOrientation(e){
     haveOrientEvent = true;
-    if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)){
+    var hasWk = typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading);
+    latest.nav.wkHeading = hasWk ? e.webkitCompassHeading : null;
+    // A negative accuracy means the compass is uncalibrated / invalid.
+    latest.nav.wkAcc = (typeof e.webkitCompassAccuracy === 'number' && e.webkitCompassAccuracy >= 0) ? e.webkitCompassAccuracy : null;
+    if (hasWk){
       latest.orient.alpha = e.webkitCompassHeading;
       headingMode = 'compass';
     } else if (headingMode !== 'absolute'){
@@ -570,6 +600,9 @@
       latest.geo.lat = pos.coords.latitude;
       latest.geo.lon = pos.coords.longitude;
       latest.geo.acc = pos.coords.accuracy;
+      latest.nav.speed = pos.coords.speed === null ? null : pos.coords.speed * 2.23694;
+      latest.nav.alt = pos.coords.altitude === null ? null : pos.coords.altitude * 3.28084;
+      latest.nav.altAcc = pos.coords.altitudeAccuracy === null ? null : pos.coords.altitudeAccuracy * 3.28084;
       setGeoNote(null);
       maybeFetchWeather(pos.coords.latitude, pos.coords.longitude);
     }, function(err){
