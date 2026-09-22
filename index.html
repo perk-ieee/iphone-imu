@@ -98,6 +98,7 @@
   .axis .fill{ position:absolute; top:0; bottom:0; left:0; width:0%; border-radius:3px; transition:width 0.25s ease; }
 
   .geo-note{ margin:0; font-size:0.88rem; color:var(--text-faint); }
+  .axis-hint{ margin:-6px 0 0; font-size:0.72rem; color:var(--text-faint); }
 
   footer{ font-size:0.85rem; color:var(--text-faint); line-height:1.55; padding-top:4px; }
   footer a{ color:inherit; }
@@ -137,7 +138,10 @@
         <div class="axis" data-axis="nws1"><span class="label">NWS °F</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
         <div class="axis" data-axis="nws2"><span class="label">NWS °F</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
         <div class="axis" data-axis="nwsP"><span class="label">NWS inHg</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <p class="axis-hint">low &lt; 29.8 — 30.2 &lt; high</p>
         <div class="axis" data-axis="nwsH"><span class="label">NWS RH %</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <div class="axis" data-axis="nwsD"><span class="label">NWS Dew Point °F</span><span class="value">—</span><div class="track"><div class="fill" style="background:var(--geo)"></div></div></div>
+        <p class="axis-hint">comfortable &lt; 55 ; oppressive &gt; 65</p>
       </div>
       <p class="geo-note" id="geoNote" hidden></p>
       <p class="geo-note" id="tempNote" hidden></p>
@@ -221,7 +225,7 @@
   </div>
 
   <footer>
-    Mobile browsers don't expose a phone's raw magnetometer to web pages, so the third triad shown here is fused orientation (compass heading, tilt, roll) rather than raw magnetic field — the closest 3-axis substitute available in-browser, on iPhone or Android. Location comes from the device's GPS/location services and is requested separately from motion access. The NWS readings come from the US National Weather Service stations nearest your GPS coordinates (US locations only) — temperature from the two nearest, pressure and humidity from the nearest that reports them — not a physical sensor on the phone, refreshed every few minutes or when you move more than ~2 km. Works on any modern phone browser; sensor and permission behavior is detected automatically.
+    Mobile browsers don't expose a phone's raw magnetometer to web pages, so the third triad shown here is fused orientation (compass heading, tilt, roll) rather than raw magnetic field — the closest 3-axis substitute available in-browser, on iPhone or Android. Location comes from the device's GPS/location services and is requested separately from motion access. The NWS readings come from the US National Weather Service stations nearest your GPS coordinates (US locations only) — temperature from the two nearest, pressure, humidity, and dew point from the nearest that reports them — not a physical sensor on the phone, refreshed every few minutes or when you move more than ~2 km. Works on any modern phone browser; sensor and permission behavior is detected automatically.
   </footer>
 </div>
 
@@ -257,7 +261,7 @@
   }
   renderDiagnostics();
 
-  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null,nws1:null,nws2:null,nwsP:null,nwsH:null}, tavino:{temp:null,wind:null,baro:null,hum:null,rain:null}, nav:{wkHeading:null,wkAcc:null,speed:null,alt:null,altAcc:null} };
+  var latest = { accel:{x:null,y:null,z:null}, gyro:{pitch:null,roll:null,yaw:null}, orient:{alpha:null,beta:null,gamma:null}, geo:{lat:null,lon:null,acc:null,nws1:null,nws2:null,nwsP:null,nwsH:null,nwsD:null}, tavino:{temp:null,wind:null,baro:null,hum:null,rain:null}, nav:{wkHeading:null,wkAcc:null,speed:null,alt:null,altAcc:null} };
   var haveMotionEvent = false, haveOrientEvent = false;
   var tickTimer = null, watchdogTimer = null, geoWatchId = null;
 
@@ -328,6 +332,7 @@
     paintAxis('geoAxes', 'nws2', latest.geo.nws2, 1, RANGES.temp);
     paintAxis('geoAxes', 'nwsP', latest.geo.nwsP, 2, RANGES.pressure);
     paintAxis('geoAxes', 'nwsH', latest.geo.nwsH, 0, RANGES.humidity);
+    paintAxis('geoAxes', 'nwsD', latest.geo.nwsD, 1, RANGES.temp);
 
     paintAxis('tavinoAxes', 'temp', latest.tavino.temp, 1, RANGES.temp);
     paintAxis('tavinoAxes', 'wind', latest.tavino.wind, 1, RANGES.wind);
@@ -425,7 +430,7 @@
     geoNote.textContent = text;
   }
 
-  var weatherStatus = { nws: null, nws2: null };
+  var weatherStatus = { nws: null, nws2: null, nwsD: null };
   var lastFetch = {
     nws: { lat: null, lon: null, time: 0 }
   };
@@ -434,6 +439,7 @@
     var msgs = [];
     if (weatherStatus.nws) msgs.push('NWS: ' + weatherStatus.nws);
     if (weatherStatus.nws2) msgs.push('NWS ' + weatherStatus.nws2);
+    if (weatherStatus.nwsD) msgs.push('NWS dew point: ' + weatherStatus.nwsD);
     if (msgs.length){ tempNote.hidden = false; tempNote.textContent = msgs.join(' · '); }
     else { tempNote.hidden = true; tempNote.textContent = ''; }
   }
@@ -459,6 +465,11 @@
 
   function tempF(data){
     var c = data.properties && data.properties.temperature && data.properties.temperature.value;
+    return (c === null || c === undefined) ? null : c * 9 / 5 + 32;
+  }
+
+  function dewF(data){
+    var c = data.properties && data.properties.dewpoint && data.properties.dewpoint.value;
     return (c === null || c === undefined) ? null : c * 9 / 5 + 32;
   }
 
@@ -493,6 +504,27 @@
       .catch(function(){ fallbackPressure(stations, i + 1); });
   }
 
+  // The nearest station often lacks a dewpoint reading; try the next few in order.
+  var NWS_DEWPOINT_STATIONS = 5;
+  function fallbackDewpoint(stations, i){
+    if (i >= stations.length || i >= NWS_DEWPOINT_STATIONS){
+      latest.geo.nwsD = null;
+      weatherStatus.nwsD = 'no dewpoint found';
+      renderTempNote();
+      return;
+    }
+    fetch(stations[i].id + '/observations/latest')
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data){
+        var nd = dewF(data);
+        if (nd === null) return fallbackDewpoint(stations, i + 1);
+        latest.geo.nwsD = nd;
+        weatherStatus.nwsD = null;
+        renderTempNote();
+      })
+      .catch(function(){ fallbackDewpoint(stations, i + 1); });
+  }
+
   function fetchNWS(lat, lon){
     var stations = [];
     fetch('https://api.weather.gov/points/' + lat.toFixed(4) + ',' + lon.toFixed(4))
@@ -521,14 +553,18 @@
         var nh = data.properties.relativeHumidity && data.properties.relativeHumidity.value;
         latest.geo.nwsP = (np === null || np === undefined) ? null : np / 3386.39;
         latest.geo.nwsH = (nh === null || nh === undefined) ? null : nh;
+        latest.geo.nwsD = dewF(data);
+        weatherStatus.nwsD = null;
         weatherStatus.nws = null;
         renderTempNote();
         if (latest.geo.nwsP === null) fallbackPressure(stations, 1);
+        if (latest.geo.nwsD === null) fallbackDewpoint(stations, 1);
       })
       .catch(function(err){
-        latest.geo.nws1 = null; latest.geo.nws2 = null; latest.geo.nwsP = null; latest.geo.nwsH = null;
+        latest.geo.nws1 = null; latest.geo.nws2 = null; latest.geo.nwsP = null; latest.geo.nwsH = null; latest.geo.nwsD = null;
         var msg = err && err.message;
         weatherStatus.nws = (msg === 'NO_COVERAGE') ? 'no coverage here (US only)' : 'unavailable (' + (msg || 'network error') + ')';
+        weatherStatus.nwsD = null;
         renderTempNote();
       });
   }
